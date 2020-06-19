@@ -1,0 +1,2 @@
+# cognos
+IBM Cognos Snipplets
