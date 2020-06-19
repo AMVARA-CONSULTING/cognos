@@ -1,6 +1,6 @@
-Extenion to be uploaded into Cognos CA11.x portal.
+Extension to be uploaded into Cognos CA11.x portal.
 
-Serves to provide a common javascript to be used in any report in the CA11 portal.
+Serves to provide a common javascript to be used in any report in the CA11 portal for toggleing grouped crosstabColumns.
 
 It uses the "common" view. So is always loaded.
 It also loads the common.css where you can globally declare and overwrite css rules.
