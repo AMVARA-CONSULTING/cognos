@@ -1,9 +1,10 @@
 #!/bin/bash
 # ---------------------------------------------------
-# Script to clean up a cognos installation (Linux!)
+# Script to clean up a cognos installation
 # removes not needed files
 # ---------------------------------------------------
 # Changelog:
+# 2020-09-28 RRO enhanced
 # 2020-09-25 RRO created
 # ---------------------------------------------------
 
@@ -26,6 +27,12 @@ CONTAINS_CRN_ENVS=$(ls /opt/IBM/cognos/ | grep -E 'crn[0-9]+$')
 #
 LOOP_CRN_ENVS=${COG_ENV}
 
+#
+# DRYMODE (= do not delete files) is true by default
+#
+DRYMODE=TRUE
+LOGLEVEL=0
+
 
 #
 # Read Commandline Options
@@ -35,10 +42,26 @@ do
 case $i in
     -a|--all)
             LOOP_CRN_ENVS=${CONTAINS_CRN_ENVS}
-    shift
+            shift
+    ;;
+    -r0|--remove_unneeded_files)
+            DRYMODE=FALSE
+            shift
+    ;;
+    -r1|--remove_uninstall_dir)
+            REMOVE_UNSTINSTALL_DIR=TRUE
+            shift
     ;;
     -d|--debug)
             set -x
+            shift
+    ;;
+    -v|--verbose)
+            LOGLEVEL=1
+            shift
+    ;;
+    -vv|--more_verbose)
+            LOGLEVEL=2
             shift
     ;;
     -e=*|--env=*)
@@ -49,12 +72,17 @@ case $i in
     -h|--help|/?|-?)
             echo Usage:
             echo =======================================================
-            echo $0 "[-d|--debug, -h, -e=<ENV> --env=<ENV>, -a  ]"
-            echo $0 -a,--all   .... cleans all crnX environments found on the specific server
-            echo $0 -d,--debug .... enables debugmode set -x
-            echo $0 -h,--help  .... shows help
+            echo $0 "[-d|--debug, -h, -e=<ENV> --env=<ENV>, -a, -r0, -r1, -v, -vv  ]"
+            echo  -a,--all   .... cleans all crnX environments found on the specific server
+            echo  -d,--debug .... enables debugmode set -x
+            echo  -v,--verbose .. does verbose logging
+            echo  -vv,--more_verbose .. does more verbose logging
+            echo  -h,--help  .... shows help
             echo
-            echo $0 without any options .... cleans /opt/IBM/cognos/crn0
+            echo  -r0,--remove_unneeded_files  ... default is drymode, do not delete, only print possible saveings, setting r0 as parameter really removes the files
+            echo  -r1,--remove_uninstall_dir ... remove the uninstall directory, default do not remove
+            echo
+            echo $0 without any options .... prints saveings on /opt/IBM/cognos/crn0
             echo
             echo $0 -e=crn1 .... uses defined environment crn1 as target
             echo ...
@@ -101,35 +129,58 @@ clean_web_server() {
         log_out "[INFO] cleaning ${COG_ENV} WEB Server Part "
 
 }
+
+log_out_ext() {
+        if [[ "${LOGLEVEL}" -gt "$2" ||  "${LOGLEVEL}" -eq "$2" ]]; then
+                log_out "$1";
+        fi
+}
+
+# remove_file_or_directory
+remove_file_or_directory() {
+        REMOVE_ME=$1
+
+        # echo file to summary with all files being removed
+        echo "${REMOVE_ME}" >> /tmp/cleanup_cognos_files.txt
+
+        # if dry mode or file to remove is not passed or empty --> just return
+        [[ ${DRY_MODE} -eq "TRUE" ||  "$1" -eq "" ]] && return;
+
+
+        # check for item to be removed is a file
+        if [[ -f "${REMOVE_ME}" ]]; then
+                test ${REMOVE_ME} && log_out_ext "[INFO] removed ${REMOVE_ME}" "2" || log_out_ext "[FAILED] to remove ${REMOVE_ME}" "2";
+        fi
+        # check for item to be removed is a directory
+        if [[ -d "${REMOVE_ME}" ]]; then
+                test ${REMOVE_ME} && log_out_ext "[INFO] removed ${REMOVE_ME}" "2" || log_out_ext "[FAILED] to remove ${REMOVE_ME}" "2";
+        fi
+}
+
+# performs some basic checks on file or directory and add the saveing
+check_this_item() {
+        ITEM_TO_BE_CHECKED=$1
+        if [[ -f "${ITEM_TO_BE_CHECKED}" || -d "${ITEM_TO_BE_CHECKED}" ]]
+        then
+                SAVED=( $(du -s ${ITEM_TO_BE_CHECKED} | cut -f1 ) );
+                SAVEING+=( ${SAVED} )
+                log_out_ext "[LOGLEVEL2] saveing ${SAVED} on ${ITEM_TO_BE_CHECKED}" "2"
+                remove_file_or_directory "${ITEM_TO_BE_CHECKED}"
+        fi
+}
+
+
+
 clean_any_server() {
 
-        # Directories we do not need
-        SAVEING+=( $(du -s bkp/ | cut -f1 ) )
-        SAVEING+=( $(du -s ibm-jre/docs/ | cut -f1 ) )
-        SAVEING+=( $(du -s samples/ | cut -f1 ) )
-        SAVEING+=( $(du -s maps/ | cut -f1 ) )
-        SAVEING+=( $(du -s nlp/stanford-corenlp-3.7.0-models-spanish.jar | cut -f1 ) )
-        SAVEING+=( $(du -s nlp/stanford-corenlp-3.7.0-models-french.jar | cut -f1 ) )
-        SAVEING+=( $(du -s sdk/MAQuery.xsd | cut -f1 ) )
-        SAVEING+=( $(du -s sdk/MAResponse.xsd | cut -f1 ) )
-        SAVEING+=( $(du -s sdk/NET3.5 | cut -f1 ) )
-        SAVEING+=( $(du -s sdk/c++ | cut -f1 ) )
-        SAVEING+=( $(du -s sdk/cognosdotnet_10_2.dll | cut -f1 ) )
-        SAVEING+=( $(du -s sdk/cognosdotnetassembly_10_2.dll | cut -f1 ) )
-        SAVEING+=( $(du -s sdk/dqe | cut -f1 ) )
-        SAVEING+=( $(du -s templates/ps/tm1/ | cut -f1 ) )
-        SAVEING+=( $(du -s uninstall/ | cut -f1 ) )
-        SAVEING+=( $(du -s webcontent/samples/ | cut -f1 ) )
-        SAVEING+=( $(du -s webcontent/servlet/default.htm | cut -f1 ) )
-        SAVEING+=( $(du -s webcontent/skins/business/ | cut -f1 ) )
-        SAVEING+=( $(du -s webcontent/skins/classic/ | cut -f1 ) )
-        SAVEING+=( $(du -s webcontent/skins/contemporary/ | cut -f1 ) )
-        SAVEING+=( $(du -s webcontent/skins/modern/ | cut -f1 ) )
-        SAVEING+=( $(du -s webcontent/skins/presentation/ | cut -f1 ) )
-        SAVEING+=( $(du -s webcontent/tm1/ | cut -f1 ) )
-        SAVEING+=( $(du -s configuration/search/collections/smarts_clue_es | cut -f1 ) )
-        SAVEING+=( $(du -s configuration/search/collections/smarts_clue_fr | cut -f1 ) )
-        SAVEING+=( $(du -s wlp/bin/tools/win/prunsrv.exe | cut -f1 ) )
+        # Things we do not need, e.g. Directories, bat files, samples, ... we do not need
+        log_out "[INFO] Checking on things we do not need";
+        THINGS_WE_DO_NOT_NEED=( bkp/ cps/sharepoint/ ibm-jre/docs/ samples/ maps/ nlp/stanford-corenlp-3.7.0-models-spanish.jar nlp/stanford-corenlp-3.7.0-models-french.jar sdk/MAQuery.xsd sdk/MAResponse.xsd sdk/NET3.5 sdk/c++ sdk/dqe templates/ps/tm1/ uninstall/ webcontent/samples/ webcontent/servlet/default.htm webcontent/skins/business/ webcontent/skins/classic/ webcontent/skins/contemporary/ webcontent/skins/modern/ webcontent/skins/presentation/ webcontent/tm1/ configuration/search/collections/smarts_clue_es configuration/search/collections/smarts_clue_fr wlp/bin/tools/win/prunsrv.exe )
+        for REMOVE_ME in ${THINGS_WE_DO_NOT_NEED[@]}; do
+                log_out_ext "[INFO] checking on ${REMOVE_ME}" "1"
+                # test if file or directory exists
+                check_this_item ${REMOVE_ME};
+        done
 
         # all language files in bin and bin64, except en + dee
         LANGUAGES=( cs da eu es fa fi fr hr hi hu it ja kk lv ko nb nl no pl pt ro ru sl sv th tr zh-cn zh-hk zh-mo zh-sg zh-tw )
@@ -141,30 +192,41 @@ clean_any_server() {
         # find files haveing the language we do not need
         for LANGUAGE in ${LANGUAGES[@]}; do
                 for SUFFIX in ${FILEENDINGS[@]}; do
-                        # log_out "[INFO] working on ${LANGUAGE}.${SUFFIX}"
-                        for ONEFILE in $(grep -i _${LANGUAGE}\.${SUFFIX} /tmp/crn_directory ); do
-                                # echo ${ONEFILE};
-                                t=$(du -s ${ONEFILE} | cut -f1);
-                                SAVEING+=( $t );
+                        log_out_ext "[INFO] working on *_${LANGUAGE}.${SUFFIX}" "1"
+                        for REMOVE_ME in $(grep -i _${LANGUAGE}\.${SUFFIX} /tmp/crn_directory ); do
+                                check_this_item "${REMOVE_ME}";
                         done
                 done
         done
 
         # we don't need *.bat files
-        for i in $(find ./ -name "*.bat" | xargs du -s | cut -f1); do SAVEING+=( $i ); done
+        for REMOVE_ME in $(find ./ -name "*.bat" ); do check_this_item ${REMOVE_ME}; done
+
+        # find *.dll we do not need
+        for REMOVE_ME in $(find ./ -name "*.dll" ); do
+                log_out_ext "[INFO] checking on ${REMOVE_ME}" "1"
+                check_this_item "${REMOVE_ME}";
+        done
 
         # find ReadMe we do not need
-        for i in $(find ./ | grep -i ReadMe | xargs du -s | cut -f1); do SAVEING+=( $i ); done
+        for REMOVE_ME in $(find ./ | grep -i ReadMe ); do
+                log_out_ext "[INFO] checking on ${REMOVE_ME}" "1"
+                check_this_item "${REMOVE_ME}";
+        done
 
         # find documentation folder we do not need
-        for DIR in ${LANGUAGES2[@]}; do
-                SAVEING+=( $(du -s webcontent/documentation/${DIR} | cut -f1) )
+        for REMOVE_ME in ${LANGUAGES2[@]}; do
+                log_out_ext "[INFO] checking on webcontent/documentation/${REMOVE_ME}" "1"
+                check_this_item "webcontent/documentation/${REMOVE_ME}"
         done
 
         # cleanup database files
         DB_NOT_NEEDED=( informix oracle sqlserver sybase zosdb2 );
         for DB in ${DB_NOT_NEEDED[@]}; do
-                for i in $(find configuration/schemas -type d | grep -i "${DB}"); do SAVED=$(du -s ${i} | cut -f1); SAVEING+=( $SAVED ); SAVED_HUMAN=$(echo $((${SAVED}*1024)) | numfmt --to=iec); done
+                for REMOVE_ME in $(find configuration/schemas -type d | grep -i "${DB}"); do
+                        log_out_ext "[INFO] checking on ${REMOVE_ME}" "1"
+                        check_this_item "${REMOVE_ME}"
+                done
         done
 
         SAVEING_WLP+=( $(du -s wlp/usr/servers/cognosserver/workarea/org.eclipse.osgi/64/data/cache/ | cut -f1 ) )
@@ -187,7 +249,8 @@ cognos_product_version() {
 #
 for i in ${LOOP_CRN_ENVS}; do
         log_out "[INFO] cleaning ${i} - ${HOST} "
-        log_out "[INFO] installation type: ${COG_INSTALL_TYPE} "
+        [[ "${DRYMODE}" -eq "TRUE" ]] && log_out "[INFO] running in DRYMODE" || log_out "[INFO] not running DRZMODE, will delete files not needed"
+        log_out "[INFO] loglevel: ${LOGLEVEL} "
         log_out "-----------------------------------"
         # set the actual env
         COG_ENV=$i
