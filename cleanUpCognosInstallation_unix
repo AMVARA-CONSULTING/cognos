@@ -1,0 +1,235 @@
+#!/bin/bash
+# ---------------------------------------------------
+# Script to clean up a cognos installation (Linux!)
+# removes not needed files
+# ---------------------------------------------------
+# Changelog:
+# 2020-09-25 RRO created
+# ---------------------------------------------------
+
+
+# defaults
+COG_ENV=crn0
+WEBSERVICE_NAME="mif-ihs0"
+ACTION=status
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+CRNCFG="/cluster/mif/scripts/BuildUp/Cognos/mif_config.sh"
+
+#
+# prepare a list of environments on this server
+#
+CONTAINS_CRN_ENVS=$(ls /opt/IBM/cognos/ | grep -E 'crn[0-9]+$')
+
+
+#
+# Variable to hold the environments to patch
+#
+LOOP_CRN_ENVS=${COG_ENV}
+
+
+#
+# Read Commandline Options
+#
+for i in "$@"
+do
+case $i in
+    -a|--all)
+            LOOP_CRN_ENVS=${CONTAINS_CRN_ENVS}
+    shift
+    ;;
+    -d|--debug)
+            set -x
+            shift
+    ;;
+    -e=*|--env=*)
+            COG_ENV="${i#*=}"
+            LOOP_CRN_ENVS=${COG_ENV}
+            shift
+    ;;
+    -h|--help|/?|-?)
+            echo Usage:
+            echo =======================================================
+            echo $0 "[-d|--debug, -h, -e=<ENV> --env=<ENV>, -a  ]"
+            echo $0 -a,--all   .... cleans all crnX environments found on the specific server
+            echo $0 -d,--debug .... enables debugmode set -x
+            echo $0 -h,--help  .... shows help
+            echo
+            echo $0 without any options .... cleans /opt/IBM/cognos/crn0
+            echo
+            echo $0 -e=crn1 .... uses defined environment crn1 as target
+            echo ...
+            exit 0
+    ;;
+    *)
+        # unknown option
+        echo Unkown option ${i}
+    ;;
+esac
+done
+
+#
+# Some general information
+#
+echo "$0 executing on $HOST"
+
+# source general MIF config
+CLUSTERCONFDIR="/cluster/mif/scripts/config"
+SHELLCONF="${CLUSTERCONFDIR}/shell.cfg";
+printf "[INFO] sourceing ${SHELLCONF} ... "
+source ${SHELLCONF} && echo [success] || { echo [failed]; exit 1; }
+
+MYTYPE=${HOST:4:1}
+
+
+# sourcepath
+SOURCEPATH=/cluster/mif/scripts/BuildUp/Cognos
+TARGETPATH=/opt/IBM/cognos
+
+
+# source the config
+log_out "[INFO] sourceing ${CRNCFG} ... "
+source ${CRNCFG}  || { log_res "[failed]"; exit 1; }
+
+#
+# PATCH Functions
+#
+clean_app_server() {
+        log_out "[INFO] cleaning ${COG_ENV} APP-server part"
+}
+
+clean_web_server() {
+        log_out "[INFO] cleaning ${COG_ENV} WEB Server Part "
+
+}
+clean_any_server() {
+
+        # Directories we do not need
+        SAVEING+=( $(du -s bkp/ | cut -f1 ) )
+        SAVEING+=( $(du -s ibm-jre/docs/ | cut -f1 ) )
+        SAVEING+=( $(du -s samples/ | cut -f1 ) )
+        SAVEING+=( $(du -s maps/ | cut -f1 ) )
+        SAVEING+=( $(du -s nlp/stanford-corenlp-3.7.0-models-spanish.jar | cut -f1 ) )
+        SAVEING+=( $(du -s nlp/stanford-corenlp-3.7.0-models-french.jar | cut -f1 ) )
+        SAVEING+=( $(du -s sdk/MAQuery.xsd | cut -f1 ) )
+        SAVEING+=( $(du -s sdk/MAResponse.xsd | cut -f1 ) )
+        SAVEING+=( $(du -s sdk/NET3.5 | cut -f1 ) )
+        SAVEING+=( $(du -s sdk/c++ | cut -f1 ) )
+        SAVEING+=( $(du -s sdk/cognosdotnet_10_2.dll | cut -f1 ) )
+        SAVEING+=( $(du -s sdk/cognosdotnetassembly_10_2.dll | cut -f1 ) )
+        SAVEING+=( $(du -s sdk/dqe | cut -f1 ) )
+        SAVEING+=( $(du -s templates/ps/tm1/ | cut -f1 ) )
+        SAVEING+=( $(du -s uninstall/ | cut -f1 ) )
+        SAVEING+=( $(du -s webcontent/samples/ | cut -f1 ) )
+        SAVEING+=( $(du -s webcontent/servlet/default.htm | cut -f1 ) )
+        SAVEING+=( $(du -s webcontent/skins/business/ | cut -f1 ) )
+        SAVEING+=( $(du -s webcontent/skins/classic/ | cut -f1 ) )
+        SAVEING+=( $(du -s webcontent/skins/contemporary/ | cut -f1 ) )
+        SAVEING+=( $(du -s webcontent/skins/modern/ | cut -f1 ) )
+        SAVEING+=( $(du -s webcontent/skins/presentation/ | cut -f1 ) )
+        SAVEING+=( $(du -s webcontent/tm1/ | cut -f1 ) )
+        SAVEING+=( $(du -s configuration/search/collections/smarts_clue_es | cut -f1 ) )
+        SAVEING+=( $(du -s configuration/search/collections/smarts_clue_fr | cut -f1 ) )
+        SAVEING+=( $(du -s wlp/bin/tools/win/prunsrv.exe | cut -f1 ) )
+
+        # all language files in bin and bin64, except en + dee
+        LANGUAGES=( cs da eu es fa fi fr hr hi hu it ja kk lv ko nb nl no pl pt ro ru sl sv th tr zh-cn zh-hk zh-mo zh-sg zh-tw )
+        # all languages in webcontent documentation, excelpt en + de
+        LANGUAGES2=( ar ca fi cs el es fr hr hu ja ko no pt ru sl th zh-cn it kk nl pl ro sk sv tr zh-tw )
+        FILEENDINGS=( bmf html jpg js json min png properties txt xml )
+        find ./ > /tmp/crn_directory
+
+        # find files haveing the language we do not need
+        for LANGUAGE in ${LANGUAGES[@]}; do
+                for SUFFIX in ${FILEENDINGS[@]}; do
+                        # log_out "[INFO] working on ${LANGUAGE}.${SUFFIX}"
+                        for ONEFILE in $(grep -i _${LANGUAGE}\.${SUFFIX} /tmp/crn_directory ); do
+                                # echo ${ONEFILE};
+                                t=$(du -s ${ONEFILE} | cut -f1);
+                                SAVEING+=( $t );
+                        done
+                done
+        done
+
+        # we don't need *.bat files
+        for i in $(find ./ -name "*.bat" | xargs du -s | cut -f1); do SAVEING+=( $i ); done
+
+        # find ReadMe we do not need
+        for i in $(find ./ | grep -i ReadMe | xargs du -s | cut -f1); do SAVEING+=( $i ); done
+
+        # find documentation folder we do not need
+        for DIR in ${LANGUAGES2[@]}; do
+                SAVEING+=( $(du -s webcontent/documentation/${DIR} | cut -f1) )
+        done
+
+        # cleanup database files
+        DB_NOT_NEEDED=( informix oracle sqlserver sybase zosdb2 );
+        for DB in ${DB_NOT_NEEDED[@]}; do
+                for i in $(find configuration/schemas -type d | grep -i "${DB}"); do SAVED=$(du -s ${i} | cut -f1); SAVEING+=( $SAVED ); SAVED_HUMAN=$(echo $((${SAVED}*1024)) | numfmt --to=iec); done
+        done
+
+        SAVEING_WLP+=( $(du -s wlp/usr/servers/cognosserver/workarea/org.eclipse.osgi/64/data/cache/ | cut -f1 ) )
+
+        SAVEING_TOTAL=0
+        IFS="+"; SAVEING_TOTAL=$(bc<<<"${SAVEING[*]}")
+        SAVEING_TOTAL_HUMAN=$(echo $((${SAVEING_TOTAL}*1024)) | numfmt --to=iec);
+        SAVEING_WLP_HUMAN=$(echo $((${SAVEING_WLP}*1024)) | numfmt --to=iec);
+        log_out "[INFO] Total saveing: ${SAVEING_TOTAL} KB = ${SAVEING_TOTAL_HUMAN}"
+        log_out "[INFO] Websphere cache: ${SAVEING_WLP} KB = ${SAVEING_WLP_HUMAN}"
+
+}
+cognos_product_version() {
+        COGNOS_VERSION=$(cat cmplst.txt | grep -i PRODUCT_VERSION | cut -d'=' -f2);
+}
+
+
+#
+# Loop over environments of server (default is crn0 only)
+#
+for i in ${LOOP_CRN_ENVS}; do
+        log_out "[INFO] cleaning ${i} - ${HOST} "
+        log_out "[INFO] installation type: ${COG_INSTALL_TYPE} "
+        log_out "-----------------------------------"
+        # set the actual env
+        COG_ENV=$i
+
+        # change directory to env
+        cd ${TARGETPATH}/${COG_ENV};
+
+        # Cognos Version
+        cognos_product_version
+        if [[ ${COGNOS_VERSION} == "" ]]; then
+                log_out "[INFO] there is no cognos installation in this path "$(pwd)
+                continue
+        else
+                log_out "[INFO] Cognos Version: ${COGNOS_VERSION}";
+        fi
+
+        # disk usage before
+        USAGE_BEFORE=$(du -s | cut -f1);
+        USAGE_BEFORE=$(($USAGE_BEFORE*1024))
+        USAGE_BEFORE_HUMAN=$(echo $USAGE_BEFORE | numfmt --to=iec)
+        log_out "[INFO] Disk usage before: ${USAGE_BEFORE} bytes = $USAGE_BEFORE_HUMAN ";
+
+
+        # clean on any server does not matter web or app server
+        clean_any_server
+
+        if [[ ${MYTYPE} == "i" && ${LINE::4} == "test" ]]; then
+                COG_INSTALL_TYPE=ONETIER
+                clean_app_server
+                clean_web_server
+        fi
+        if [[ ${MYTYPE} == "i" && ${LINE::4} != "test" ]]; then
+                COG_INSTALL_TYPE=WEBSERVER
+                clean_web_server
+        fi
+        if [[ ${MYTYPE} == "a" ]]; then
+                COG_INSTALL_TYPE=APPSERVER
+                clean_app_server
+        fi
+
+done
+
+
+echo [done]
+echo
