@@ -9,7 +9,7 @@
 # 2020-09-28 RRO enhanced
 # 2020-09-25 RRO created
 # --------------------------------------------------- 
-VERSION=2020-09-29
+VERSION=2021-08-19
 
 # defaults
 COG_ENV=crn0
@@ -218,7 +218,7 @@ check_on_wlp_cache() {
 check_on_nls_language_files() {
 	# directories with languages, we do not need
 	log_out "[INFO] Checking on directories with "nls/" and languages we do not need - all except de + en";
-	LANGUAGES3=( $( ls -alR /opt/IBM/cognos/crn0/webcontent/bi/ | grep -i "nls/" | sed 's/.*nls\//\//g;s/root//g;s/en://g;s/\/de://g;s/[:\/]//g' | sort | uniq | xargs ) )
+	LANGUAGES3=( $( ls -alR /opt/IBM/cognos/crn0/webcontent/bi/ | grep -i "nls/" | sed 's/.*nls\//\//g;s/root//g;s/ps://g;s/en://g;s/\/de://g;s/[:\/]//g' | sort | uniq | xargs ) )
 	for LANGUAGE in ${LANGUAGES3[@]}; do
 		log_out_ext "[INFO] working on nls/${LANGUAGE}" "1" 
 		for REMOVE_ME in $( find ./webcontent/ -type d -name "${LANGUAGE}" );do
