@@ -27,6 +27,25 @@ Then join Query A + B on the item "newid" into a new query where columns from A+
 
 
 
+
+
+
+
+
+See data:
+
+
+| STEP | 	INV	| BL | 	MT | 	WH | 	X | 	Data Item1 | 	Data Item2 | 	B_STEP |  	B_INV | 	B_BL | 	B_MT | 	B_WH | 	B_X	| B_Data Item1 | 	B_Data Item2 | 	Data Item3 | 
+| ---- | 	---	| -- | 	-- | 	-- | 	- | 	---------- | 	---------- | 	------ |  	----- | 	---- | 	---- | 	---- | 	---	| ------------ | 	------------ | 	---------- | 
+| 3	| 3490.78	| 767.23| 	56,45| 	23| 	9| 	2| 	1.5| 	3| 	3490.78| 	767.23| 	56,45| 	23| 	9| 	2| 	1.5 |	1 | 
+| 4	| 234.45	| 767.23| 	56,45| 	23| 	9| 	2| 	2 | 	3| 	3490.78| 	767.23| 	56,45| 	23| 	9| 	2| 	1.5 |	0 | 
+| 5     | 	234.45	| 167.23| 	56,45| 	23| 	9| 	3| 	2.5| 	5| 	234.45 | 	167.23| 	56,45| 	23| 	9| 	3| 	2.5 |	1 | 
+
+Report Screenshot
+
+<img src="https://github.com/AMVARA-CONSULTING/cognos/blob/master/report_with_conditional_formatting/2022-03-27%2016_02_46-New%20report.png"></img>
+
+
 This is my simple reporting doing so using ibmsys.sysdummy1 sql with your values.
 
 
@@ -127,20 +146,5 @@ select 5 as STEP, &apos;234.45&apos; as INV, &apos;167.23&apos; as BL, &apos;56,
 				<variableValue value="1"/>
 			</variableValues>
 		</reportVariable></reportVariables><classStyles><classStyle name="GuidedLayoutLeftPadding"><CSS value="padding-left:5px;border-top-width:1px;border-bottom-width:1px;border-left-width:1px;border-right-width:1px"/></classStyle><classStyle name="GuidedLayoutTopPadding"><CSS value="padding-top:5px;border-top-width:1px;border-bottom-width:1px;border-left-width:1px;border-right-width:1px"/></classStyle><classStyle name="GuidedLayoutRightPadding"><CSS value="padding-right:5px;border-top-width:1px;border-bottom-width:1px;border-left-width:1px;border-right-width:1px"/></classStyle><classStyle name="GuidedLayoutBottomPadding"><CSS value="padding-bottom:5px;border-top-width:1px;border-bottom-width:1px;border-left-width:1px;border-right-width:1px"/></classStyle><classStyle name="GuidedLayoutMargin"><CSS value="margin-bottom:10px"/></classStyle></classStyles><modelPath>/content/package[@name=&apos;MIF_DASHBOARD&apos;]/model[@name=&apos;model&apos;]</modelPath><reportName>Conditional Formatting between rows</reportName><namedConditionalStyles><advancedConditionalStyle name="Conditional Style 1"><styleCases><styleCase><style><CSS value="background-color:green"/></style><reportCondition>[Query4].[INV] = [Query4].[B_INV]</reportCondition></styleCase><styleCase><style><CSS value="background-color:fuchsia"/></style><reportCondition>[Query4].[B_INV]&lt;&gt;[Query4].[INV]</reportCondition></styleCase></styleCases><styleDefault><style><CSS value="background-color:red"/></style></styleDefault></advancedConditionalStyle></namedConditionalStyles></report>
-
-
-
-
-See data:
-
-
-| STEP | 	INV	| BL| 	MT| 	WH| 	X| 	Data Item1| 	Data Item2| 	B_STEP| 	B_INV| 	B_BL| 	B_MT| 	B_WH| 	B_X	| B_Data Item1| 	B_Data Item2| 	Data Item3| 
-| 3	| 3490.78	| 767.23| 	56,45| 	23| 	9| 	2| 	1.5| 	3| 	3490.78| 	767.23| 	56,45| 	23| 	9| 	2| 	1.5	1| 
-| 4	| 234.45	| 767.23| 	56,45| 	23| 	9| 	2| 	2 | 	3| 	3490.78| 	767.23| 	56,45| 	23| 	9| 	2| 	1.5	0| 
-| 5 | 	234.45	| 167.23| 	56,45| 	23| 	9| 	3| 	2.5| 	5| 	234.45| 	167.23| 	56,45| 	23| 	9| 	3| 	2.5	1| 
-
-Report Screenshot
-
-<img src="report_with_conditional_formatting/2022-03-27 16_02_46-New report.png"></img>
-
-
+		
+		
