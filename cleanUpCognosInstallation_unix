@@ -4,19 +4,23 @@
 # removes not needed files
 # --------------------------------------------------- 
 # Changelog:
+# 2021-08-19 ASO Fixed image delete outside "ps" folder removing images needed in administration
 # 2020-09-30 RRO added nls+languages
 # 2020-09-29 RRO wlp cache not correct, cognos version 11.0 not detected
 # 2020-09-28 RRO enhanced
 # 2020-09-25 RRO created
 # --------------------------------------------------- 
-VERSION=2020-09-29
+VERSION=2021-08-19
+
+
+PROJECT_NAME="xxx"
 
 # defaults
 COG_ENV=crn0
-WEBSERVICE_NAME="mif-ihs0"
+WEBSERVICE_NAME="${PROJECT_NAME}-ihs0"
 ACTION=status
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-CRNCFG="/cluster/mif/scripts/BuildUp/Cognos/mif_config.sh"
+CRNCFG="/cluster/${PROJECT_NAME}/scripts/BuildUp/Cognos/${PROJECT_NAME}_config.sh"
 CHECK_ON_WLP_CACHE=FALSE
 
 #
@@ -125,8 +129,8 @@ done
 #
 echo "$0 executing on $HOST"
 
-# source general MIF config
-CLUSTERCONFDIR="/cluster/mif/scripts/config"
+# source general ${PROJECT_NAME} config
+CLUSTERCONFDIR="/cluster/${PROJECT_NAME}/scripts/config"
 SHELLCONF="${CLUSTERCONFDIR}/shell.cfg";
 printf "[INFO] sourceing ${SHELLCONF} ... "
 source ${SHELLCONF} && echo [success] || { echo [failed]; exit 1; }
@@ -135,7 +139,7 @@ MYTYPE=${HOST:4:1}
 
 
 # sourcepath
-SOURCEPATH=/cluster/mif/scripts/BuildUp/Cognos
+SOURCEPATH=/cluster/${PROJECT_NAME}/scripts/BuildUp/Cognos
 TARGETPATH=/opt/IBM/cognos
 
 
@@ -218,7 +222,7 @@ check_on_wlp_cache() {
 check_on_nls_language_files() {
 	# directories with languages, we do not need
 	log_out "[INFO] Checking on directories with "nls/" and languages we do not need - all except de + en";
-	LANGUAGES3=( $( ls -alR /opt/IBM/cognos/crn0/webcontent/bi/ | grep -i "nls/" | sed 's/.*nls\//\//g;s/root//g;s/en://g;s/\/de://g;s/[:\/]//g' | sort | uniq | xargs ) )
+	LANGUAGES3=( $( ls -alR /opt/IBM/cognos/crn0/webcontent/bi/ | grep -i "nls/" | sed 's/.*nls\//\//g;s/root//g;s/ps://g;s/en://g;s/\/de://g;s/[:\/]//g' | sort | uniq | xargs ) )
 	for LANGUAGE in ${LANGUAGES3[@]}; do
 		log_out_ext "[INFO] working on nls/${LANGUAGE}" "1" 
 		for REMOVE_ME in $( find ./webcontent/ -type d -name "${LANGUAGE}" );do
@@ -378,3 +382,5 @@ done
 
 echo [done]
 echo 
+
+

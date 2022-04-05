@@ -1,0 +1,421 @@
+#!/bin/bash
+# set -x
+VERSION='2.0 - Rev. {$Revision$}'
+PROJECT_NAME="xxx"
+#
+#################################################################
+#                                                               #
+# Script to cleanup audtidb tables which are older then 1 year  #
+#                                                               #
+#################################################################
+
+CLUSTERSCRIPTDIR="/cluster/${PROJECT_NAME}/scripts"
+SHELLCONF="${CLUSTERSCRIPTDIR}/config/shell.cfg"
+
+if [[ -r "${SHELLCONF}" ]]; then
+    source ${SHELLCONF}
+else
+	echo "`date` Unable to read $SHELLCONF!"
+	echo "`date` Exit script ..."
+	exit 1
+fi
+
+#
+# SYSTEM VALUES
+#
+
+AWK="/usr/bin/awk"
+FIND="/usr/bin/find"
+GREP="/usr/bin/egrep"
+TAR="/bin/tar"
+MAILX="/usr/bin/mailx"
+PSAXO="/bin/ps axo user,pid,sess,comm"
+MAILX="/usr/bin/mailx"
+
+DBSIZESCRIPT="/cluster/${PROJECT_NAME}/scripts/DBTBSSize.ksh"
+
+LOGLEVEL=info # info or debug
+LOGDIR="/srv/${PROJECT_NAME}/logs/scripts/auditdbmaintenance"
+
+if [ ! -d "${LOGDIR}" ]; then
+	log_wfr "Create sql script directory:"
+	mkdir -p  ${LOGDIR}
+	if [ -d "${LOGDIR}" ]; then
+		log_res "[SUCCESS]"
+	else 
+		log_res "[FAIL]"
+		log_out "Unable to create sql directory:"
+		log_out "[${LOGDIR}]"
+		log_out "Stop script ..."
+		exit 1
+	fi
+fi
+
+LOGFILE=${LOGDIR}/audit_db_maintainance_${HOST}.log
+LOGARCH=${LOGFILE##*/}
+LOGARCH=${LOGARCH%%.*}.tgz
+MAILSTAT="INFO"
+INSTANCE=fk1xap04
+COGAUDITSCHEMAS=crn_aud
+COGAUDITTABLEFILE="/cluster/${PROJECT_NAME}/scripts/config/cogaudittables.dat"
+SCRIPTCONFDIR="/srv/${PROJECT_NAME}/data/scripts/config"
+SQLDIR="/srv/${PROJECT_NAME}/data/scripts/sql"
+
+if [ ! -d "${SQLDIR}" ]; then
+	log_wfr "Create sql script directory:"
+	mkdir -p  ${SQLDIR}
+	if [ -d "${SQLDIR}" ]; then
+		log_res "[SUCCESS]"
+	else 
+		log_res "[FAIL]"
+		log_out "unable to create sql directory:"
+		log_out "[${SQLDIR}]"
+		log_out "Stop script ..."
+		exit 1
+	fi
+fi
+
+CLEANUPSQL=${SQLDIR}/cleanup_auditdb.sql
+CHECKSQL=${SQLDIR}/count_entries_auditdb.sql	
+
+REPEATTIMES=10
+RETIME=10
+
+DMONTH=24
+MYUSER=$(id -un)
+MYNAME=$(basename $0)
+MAILFILE=${LOGDIR}/${MYNAME%%.*}.mail
+
+# RECIPIENT="foo@notexisting.bar"
+
+print_usage() 
+{
+	echo "	===================================================================================================="
+	echo "	Run script as root"
+	echo "	Script will switch to instance user to run sqls"
+	echo ""
+    	echo "	${MYNAME} [ -i db2instance ] [ -s db2schema ] [ -l logpath ] [-m history in months][-S]"
+	echo ""
+	echo "	Default instance:		fk1xap04"
+	echo "	Default schema:			crn_aud"
+	echo "	Default logpath:		/srv/${PROJECT_NAME}/logs/scripts/auditdbmaintenance"
+	echo "	Default history time:		24"
+	echo "	Option -S:			get all schemas starting with \"CRN\" from db2 instance"
+	echo "	===================================================================================================="
+}
+
+get_schemas()
+{
+	COGAUDITSCHEMAS=$(su - ${INSTANCE} -c "db2 connect to ${INSTANCE}; db2 select schemaname from syscat.schemata; db2 terminate" | grep "^CRN")
+	if [ -z "${COGAUDITSCHEMAS}" ]; then
+		log_out "Did not find any db2 schemas starting with \"CRN\" in database ${INSTANCE}!"
+		log_out "Stop script ..."
+		exit 5
+	fi
+}
+
+check_num()
+{
+	if [ "${DMONTH}" -gt "0" ] 2> /dev/null; then
+		log_wfr "New parameter for histtime"
+		log_res "[${DMONTH}]"
+	else
+		log_out "${DMONTH} is not allowed for histtime parameter"
+		log_out "Please give an integer as parameter for histtime!"
+		log_out "Exit script ${MYNAME} ..."
+		exit 5
+	fi
+}
+
+while getopts "hi:l:m:s:S" opt
+do
+    case $opt in
+	i)	INSTANCE=$OPTARG
+		;;
+	s)	COGAUDITSCHEMAS=$OPTARG
+		;;
+	l)	LOGDIR=$OPTARG
+		;;
+	m)	DMONTH=$OPTARG
+		check_num
+		;;
+	S)	get_schemas
+		;;
+	h)	print_usage
+		exit 0
+		;;
+    \?) print_usage 
+        exit 2
+        ;;
+    esac
+done
+
+MYTIME=$(date +%Y-%m-%d-%H.%M.00.0 -d "$DMONTH month ago")
+
+check_run()
+{
+	# set -x
+	MYPID=$(echo $$)
+	MYUSER=$(${PSAXO} | ${AWK} '{ if ( $2 == "'$MYPID'") print $1 }')
+	MYSESS=$(${PSAXO} | ${AWK} '{ if ( $2 == "'$MYPID'") print $3 }')
+	MYNAME=$(basename $0)
+	MYNAME=${MYNAME%%-*}
+	SCRIPTRUN=$(${PSAXO} | ${AWK} '{ if ( $1 == "'$MYUSER'" && $4 ~ "'${MYNAME:0:15}'" ) s[$3] } END { for ( i in s ) {count++}; print count }')
+	if [ "${SCRIPTRUN:-0}" -gt "1" ]; then
+		OTHERSCRIPTPIDS=$(${PSAXO} | ${AWK} '{ if ( $1 == "'$MYUSER'" && $4 ~ "'$MYNAME'" && $3 != "'$MYSESS'" ) print $2 }')
+	fi
+}
+
+get_cogaudittables()
+{
+	for AUDSCHEMA in ${COGAUDITSCHEMAS}; do
+		su - ${INSTANCE} -c "db2 connect to ${INSTANCE}; db2 -x list tables for schema $AUDSCHEMA > /${SCRIPTCONFDIR}/${AUDSCHEMA}_tables.txt; db2 terminate"
+	done
+}
+
+build_cleanup_sql()
+{
+cat > $CLEANUPSQL <<EOT
+connect to $INSTANCE;
+set current schema $AUDSCHEMA;
+delete FROM COGIPF_ACTION where COGIPF_LOCALTIMESTAMP < '$MYTIME';
+reorg table COGIPF_ACTION use TEMPSPACE08K;
+delete FROM COGIPF_PARAMETER where COGIPF_LOCALTIMESTAMP < '$MYTIME';
+reorg table COGIPF_PARAMETER use TEMPSPACE1;
+delete FROM COGIPF_NATIVEQUERY where COGIPF_LOCALTIMESTAMP < '$MYTIME';
+reorg table COGIPF_NATIVEQUERY use TEMPSPACE1;
+delete FROM COGIPF_RUNJOB where COGIPF_LOCALTIMESTAMP < '$MYTIME';
+reorg table COGIPF_RUNJOB use TEMPSPACE08K;
+delete FROM COGIPF_RUNJOBSTEP where COGIPF_LOCALTIMESTAMP < '$MYTIME';
+reorg table COGIPF_RUNJOBSTEP use TEMPSPACE08K;
+delete FROM COGIPF_RUNREPORT where COGIPF_LOCALTIMESTAMP < '$MYTIME';
+reorg table COGIPF_RUNREPORT use TEMPSPACE08K;
+delete FROM COGIPF_USERLOGON where COGIPF_LOCALTIMESTAMP < '$MYTIME';
+reorg table COGIPF_USERLOGON use TEMPSPACE08K;
+delete FROM COGIPF_VIEWREPORT where COGIPF_LOCALTIMESTAMP < '$MYTIME';
+reorg table COGIPF_VIEWREPORT use TEMPSPACE08K;
+delete FROM COGIPF_EDITQUERY where COGIPF_LOCALTIMESTAMP < '$MYTIME';
+reorg table COGIPF_EDITQUERY use TEMPSPACE08K;
+delete FROM COGIPF_AGENTRUN where COGIPF_LOCALTIMESTAMP < '$MYTIME';
+reorg table COGIPF_AGENTRUN use TEMPSPACE08K;
+delete FROM COGIPF_AGENTBUILD where COGIPF_LOCALTIMESTAMP < '$MYTIME';
+reorg table COGIPF_AGENTBUILD use TEMPSPACE08K;
+delete FROM COGIPF_MIGRATION where COGIPF_LOCALTIMESTAMP < '$MYTIME';
+reorg table COGIPF_MIGRATION use TEMPSPACE08K;
+delete FROM COGIPF_THRESHOLD_VIOLATIONS where COGIPF_LOCALTIMESTAMP < '$MYTIME';
+reorg table COGIPF_THRESHOLD_VIOLATIONS use TEMPSPACE1;
+delete FROM COGIPF_POWERPLAY_DIM_USAGE WHERE COGIPF_REQUESTID IN (SELECT COGIPF_REQUESTID FROM COGIPF_POWERPLAY WHERE COGIPF_LOCALTIMESTAMP < '$MYTIME');
+reorg table COGIPF_POWERPLAY_DIM_USAGE use TEMPSPACE1;
+delete FROM COGIPF_POWERPLAY_MEASURE_USAGE WHERE COGIPF_REQUESTID IN (SELECT COGIPF_REQUESTID FROM COGIPF_POWERPLAY WHERE COGIPF_LOCALTIMESTAMP < '$MYTIME');
+reorg table COGIPF_POWERPLAY_MEASURE_USAGE use TEMPSPACE1;
+delete FROM COGIPF_POWERPLAY where COGIPF_LOCALTIMESTAMP < '$MYTIME';
+reorg table COGIPF_POWERPLAY use TEMPSPACE08K;
+delete FROM COGIPF_HUMANTASKSERVICE_DETAIL WHERE COGIPF_LOGENTRYID IN (SELECT COGIPF_LOGENTRYID FROM COGIPF_HUMANTASKSERVICE WHERE COGIPF_LOCALTIMESTAMP < '$MYTIME');
+reorg table COGIPF_HUMANTASKSERVICE_DETAIL use TEMPSPACE1;
+delete FROM COGIPF_HUMANTASKSERVICE where COGIPF_LOCALTIMESTAMP < '$MYTIME';
+reorg table COGIPF_HUMANTASKSERVICE use TEMPSPACE08K;
+delete FROM COGIPF_ANNOTATIONSERVICE where COGIPF_LOCALTIMESTAMP < '$MYTIME';
+reorg table COGIPF_ANNOTATIONSERVICE use TEMPSPACE08K;
+delete FROM COGIPF_MOBILESERVICE where COGIPF_LOCALTIMESTAMP < '$MYTIME';
+reorg table COGIPF_MOBILESERVICE use TEMPSPACE08K;
+COMMIT;
+EOT
+}
+
+build_count_sql()
+{
+cat > $CHECKSQL <<EOT
+connect to $INSTANCE;
+set current schema $AUDSCHEMA;
+SELECT 'COGIPF_ACTION' AS "TABLE",COUNT(*) AS "ROWCOUNT" FROM COGIPF_ACTION
+UNION ALL
+SELECT 'COGIPF_PARAMETER',COUNT(*) FROM COGIPF_PARAMETER
+UNION ALL
+SELECT 'COGIPF_NATIVEQUERY',COUNT(*) FROM COGIPF_NATIVEQUERY
+UNION ALL
+SELECT 'COGIPF_RUNJOB',COUNT(*) FROM COGIPF_RUNJOB
+UNION ALL
+SELECT 'COGIPF_RUNJOBSTEP',COUNT(*)  FROM COGIPF_RUNJOBSTEP
+UNION ALL
+SELECT 'COGIPF_RUNREPORT',COUNT(*) FROM COGIPF_RUNREPORT
+UNION ALL
+SELECT 'COGIPF_USERLOGON',COUNT(*) FROM COGIPF_USERLOGON
+UNION ALL
+SELECT 'COGIPF_VIEWREPORT',COUNT(*) FROM COGIPF_VIEWREPORT
+UNION ALL
+SELECT 'COGIPF_EDITQUERY',COUNT(*) FROM COGIPF_EDITQUERY 
+UNION ALL
+SELECT 'COGIPF_AGENTRUN',COUNT(*) FROM COGIPF_AGENTRUN 
+UNION ALL
+SELECT 'COGIPF_AGENTBUILD',COUNT(*) FROM COGIPF_AGENTBUILD 
+UNION ALL
+SELECT 'COGIPF_MIGRATION',COUNT(*) FROM COGIPF_MIGRATION 
+UNION ALL
+SELECT 'COGIPF_THRESHOLD_VIOLATIONS',COUNT(*) FROM COGIPF_THRESHOLD_VIOLATIONS 
+UNION ALL
+SELECT 'COGIPF_POWERPLAY_DIM_USAGE',COUNT(*) FROM COGIPF_POWERPLAY_DIM_USAGE 
+UNION ALL
+SELECT 'COGIPF_POWERPLAY_MEASURE_USAGE',COUNT(*) FROM COGIPF_POWERPLAY_MEASURE_USAGE 
+UNION ALL
+SELECT 'COGIPF_POWERPLAY',COUNT(*)  FROM COGIPF_POWERPLAY 
+UNION ALL
+SELECT 'COGIPF_HUMANTASKSERVICE_DETAIL',COUNT(*) FROM COGIPF_HUMANTASKSERVICE_DETAIL 
+UNION ALL
+SELECT 'COGIPF_HUMANTASKSERVICE',COUNT(*) FROM COGIPF_HUMANTASKSERVICE
+UNION ALL
+SELECT 'COGIPF_ANNOTATIONSERVICE',COUNT(*) FROM COGIPF_ANNOTATIONSERVICE 
+UNION ALL
+SELECT 'COGIPF_MOBILESERVICE',COUNT(*) FROM COGIPF_MOBILESERVICE
+ORDER BY 1;
+EOT
+}
+
+send_mail()
+{
+	DATE=$(date '+%d.%m.%Y %H:%M:%S')
+	SUBJECT="Status of audit db cleanup on ${INSTANCE}: ${MAILSTAT}"
+	if [ -r "${MAILFILE}" ]; then
+		if [ -r "${LOGARCH}" ]; then
+			cat ${MAILFILE} | ${MAILX} -r ${MAILSENDER} -s "${PRESUBJECT} ${SUBJECT}" -a ${LOGARCH} ${RECIPIENT}
+		else
+			cat ${MAILFILE} | ${MAILX} -r ${MAILSENDER} -s "${PRESUBJECT} ${SUBJECT}" ${RECIPIENT}
+		fi
+	else
+		echo $DATE: Could not read from ${MAILFILE} | ${MAILX} -r ${MAILSENDER} -s "${PRESUBJECT} ${SUBJECT}" ${RECIPIENT}
+	fi
+}
+
+create_logarch()
+{
+	# set -x
+	cd ${LOGDIR}
+	log_wfr "Creating log archiv"		| tee -a ${MAILFILE}
+	${TAR} cfz ${LOGARCH} ${LOGFILE##*/}
+	if [ -s ${LOGARCH} ]; then
+		log_res "[SUCCESS]"				| tee -a ${MAILFILE}
+	else
+		log_res "[FAIL]"				| tee -a ${MAILFILE}
+	fi
+}
+
+#
+# System info
+#
+log_out "*****************************************************"
+log_out "(C) R.Roeber, AMVARA, 2014 - $MYNAME - $VERSION" 
+log_out "Adapted by Ewald Geschwinde 2016/02 " 
+log_out "Run script $MYNAMR as $MYUSER on host $HOST"				| tee ${MAILFILE}
+log_out "Logfile:  ${LOGFILE}"										| tee -a ${MAILFILE}
+log_out "History time for database entries set to ${DMONTH} monthes"	| tee -a ${MAILFILE}
+
+check_run
+
+RC=1
+if [ "${SCRIPTRUN:-0}" -gt "1" ]; then
+	while [ "$RC" -le "${REPEATTIMES}" -a "${SCRIPTRUN}" -gt "1" ]; do
+		log_out "Script ist already running with pid(s):"	| tee -a ${MAILFILE}
+		echo "-----------------------------------------" | tee -a ${LOGFILE}
+		for OPID in ${OTHERSCRIPTPIDS}; do
+			log_out "[${OPID}]"								| tee -a ${MAILFILE}
+		done
+		echo "-----------------------------------------" | tee -a ${LOGFILE}
+		log_out "Retry in $RETIME seconds"					| tee -a ${MAILFILE}
+		sleep $RETIME
+		check_run
+		RC=$((RC+1))
+	done
+fi
+
+if [ "${RC}" -eq "11" ]; then
+	log_out "Script is still running!"			| tee -a ${MAILFILE}
+	log_out "Stop execution ..."				| tee -a ${MAILFILE}
+	log_out "Please check the following pids ..."
+	echo "-----------------------------------------" | tee -a ${LOGFILE}
+	for OPID in ${OTHERSCRIPTPIDS}; do
+		log_out "[${OPID}]"
+	done
+	echo "-----------------------------------------" | tee -a ${LOGFILE}
+	exit 3
+fi
+
+log_wfr "Server:"								| tee -a ${MAILFILE}
+log_res "[${HOST}]"								| tee -a ${MAILFILE}
+log_wfr "Database Instance:"					| tee -a ${MAILFILE}
+log_res "[${INSTANCE}]"							| tee -a ${MAILFILE}
+
+BDBINSTSIZE=$(${DBSIZESCRIPT} ${INSTANCE} | ${AWK} '{ if ( $1 == "Total:" ) print $0 }')
+
+chmod 666 ${LOGFILE}
+
+for AUDSCHEMA in ${COGAUDITSCHEMAS}; do
+	log_wfr "DB2 Schema:"						| tee -a ${MAILFILE}
+	log_res "[${AUDSCHEMA}]"					| tee -a ${MAILFILE}
+	log_wfr "Build cleanup sql file"			| tee -a ${MAILFILE}
+	build_cleanup_sql							| tee -a ${MAILFILE}
+	if [ -s "${CLEANUPSQL}" ]; then
+		log_res "[SUCCESS]"						| tee -a ${MAILFILE}
+	else
+		log_res "[FAIL]"						| tee -a ${MAILFILE}
+		log_out "Unable create cleanup sql"		| tee -a ${MAILFILE}
+		log_out "[${CLEANUPSQL}]"				| tee -a ${MAILFILE}
+		log_out "Stop script ..."				| tee -a ${MAILFILE}
+		exit 4
+	fi
+
+	log_wfr "Build count sql file"				| tee -a ${MAILFILE}
+	build_count_sql
+	if [ -s "${CHECKSQL}" ]; then
+		log_res "[SUCCESS]"						| tee -a ${MAILFILE}
+	else
+		log_res "[FAIL]"						| tee -a ${MAILFILE}
+		log_out "Unable to create count sql"	| tee -a ${MAILFILE}
+		log_out "[${CHECKSQL}]"					| tee -a ${MAILFILE}
+	fi
+	
+	# set -x
+	log_wfr "Count table rows befor cleanup"	| tee -a ${MAILFILE}
+	ECODE=$(su - ${INSTANCE} -c "db2 connect to ${INSTANCE}; db2 -xtvf ${CHECKSQL} -z ${LOGFILE}; export COUNTE=\$?; db2 terminate; echo \$COUNTE" | ${AWK} 'END {print $NF}')
+	if [ "${ECODE}" -le "2" ]; then
+		log_res "[SUCCESS][${ECODE}]"			| tee -a ${MAILFILE}	
+	else
+		log_res "[FAIL][${ECODE}]"				| tee -a ${MAILFILE}
+		MAILSTAT="FAIL"
+	fi
+	log_wfr "Run audit db cleanup"				| tee -a ${MAILFILE}
+	ECODE=$(su - ${INSTANCE} -c "db2 connect to ${INSTANCE}; db2 -xtvf ${CLEANUPSQL} -z ${LOGFILE}; export COUNTE=\$?; db2 terminate; echo \$COUNTE" | ${AWK} 'END {print $NF}')
+	if [ "${ECODE}" -le "2" ]; then
+		log_res "[SUCCESS][${ECODE}]"			| tee -a ${MAILFILE}
+	else
+		log_res "[FAIL][${ECODE}]"				| tee -a ${MAILFILE}
+		MAILSTAT="FAIL"
+	fi
+	log_wfr "Count table rows after cleanup"	| tee -a ${MAILFILE}
+	ECODE=$(su - ${INSTANCE} -c "db2 connect to ${INSTANCE}; db2 -xtvf ${CHECKSQL} -z ${LOGFILE}; export COUNTE=\$?; db2 terminate; echo \$COUNTE" | ${AWK} 'END {print $NF}')
+	if [ "${ECODE}" -le "2" ]; then
+		log_res "[SUCCESS][${ECODE}]"			| tee -a ${MAILFILE}
+	else
+		log_res "[FAIL][${ECODE}]"				| tee -a ${MAILFILE}
+		MAILSTAT="FAIL"
+	fi
+done
+
+# sleep 300
+
+ADBINSTSIZE=$(${DBSIZESCRIPT} ${INSTANCE} | ${AWK} '{ if ( $1 == "Total:" ) print $0 }')
+
+log_wfr "DB Instance size befor cleanup:"		| tee -a ${MAILFILE}
+log_res "[${BDBINSTSIZE}]"						| tee -a ${MAILFILE}
+log_wfr "DB Instance size after cleanup:"		| tee -a ${MAILFILE}
+log_res "[${ADBINSTSIZE}]"						| tee -a ${MAILFILE}
+
+
+create_logarch
+send_mail
+
+if [ -f ${LOGARCH} ]; then
+	log_wfr "Remove log archiv"
+	rm -r ${LOGARCH} && log_res "[SUCCESS]" || log_res "[FAIL]"
+fi
+	
+exit 0
+
