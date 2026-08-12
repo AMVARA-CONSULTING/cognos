@@ -9,8 +9,8 @@
 | File | Role |
 | --- | --- |
 | [README.md](README.md) | This investigation note |
-| [templates/response.properties.example](templates/response.properties.example) | Sanitized custom-server template (edit before use) |
-| [templates/response-linux.properties.example](templates/response-linux.properties.example) | Same pattern with Linux paths |
+| [response.properties.example](response.properties.example) | Sanitized custom-server template (edit before use) |
+| [response-linux.properties.example](response-linux.properties.example) | Same pattern with Linux paths |
 
 Do **not** commit real response files that contain encrypted passwords.
 
@@ -73,7 +73,7 @@ Passwords typed in the wizard are stored **encrypted** in the response file.
 
 ## Method 2 — Edit a template
 
-Start from `templates/*.example` or a recorded file. Keep **no spaces** around `=`.
+Start from `*.example` in this folder or a recorded file. Keep **no spaces** around `=`.
 
 ### Typical custom server keys
 
