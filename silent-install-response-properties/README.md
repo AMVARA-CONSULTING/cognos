@@ -1,4 +1,4 @@
-# Silent install — `response.properties` investigation
+# Silent install — `response.properties`
 
 **Captured:** 2026-08-12  
 **Topic:** IBM Cognos Analytics silent / unattended install response file  
@@ -8,7 +8,7 @@
 
 | File | Role |
 | --- | --- |
-| [README.md](README.md) | This investigation note |
+| [README.md](README.md) | This note |
 | [response.properties.example](response.properties.example) | Sanitized custom-server template (edit before use) |
 | [response-linux.properties.example](response-linux.properties.example) | Same pattern with Linux paths |
 
