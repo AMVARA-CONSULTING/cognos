@@ -1,0 +1,25 @@
+# Replay / response file for IBM Cognos Analytics silent install
+# Template only — copy, rename to response.properties, and edit.
+# Do not commit files that contain encrypted passwords.
+#
+# Generate a fuller file with the installer -r flag when possible.
+# Example:
+#   ca_instl_win_*.exe -DREPO=ca_srv_win64_*.zip -r response.properties
+
+INSTALLER_UI=silent
+LICENSE_ACCEPTED=true
+
+BISRVR_CA_INSTALL=1
+BISRVR_CA_TOOLS_INSTALL=0
+USER_INSTALL_DIR=C:\\Program Files\\ibm\\cognos\\analytics
+BISRVR_SHORTCUT=IBM Cognos Analytics
+BISRVR_ALLUSERS=1
+BISRVR_INSTALLTYPE_CUSTOM=1
+BISRVR_CUSTOM_FIRST=1
+BISRVR_CUSTOM_EXPAND=0
+
+# Features: 1 = install, 0 = skip
+BISRVR_FEATURE_DATATIER=1
+BISRVR_FEATURE_APPTIER=1
+BISRVR_FEATURE_GATEWAY=1
+BISRVR_FEATURE_SAMPLES=0
