@@ -12,6 +12,7 @@ IBM Cognos Snipplets
 | Path | Summary |
 | --- | --- |
 | [silent-install-response-properties/](silent-install-response-properties/) | How to create and use `response.properties` for silent Cognos Analytics install |
+| [cognos-analytics-mcp-tools-inventory/](cognos-analytics-mcp-tools-inventory/) | Cognos Analytics v12.1.3 MCP tool inventory (71 tools / 13 categories) |
 | [CognosRestApiXHR/](CognosRestApiXHR/) | REST / XHR snippets |
 | [report_with_conditional_formatting/](report_with_conditional_formatting/) | Conditional formatting sample |
 | [toggleGroupedCrosstab_Extension/](toggleGroupedCrosstab_Extension/) | Crosstab grouping extension |
