@@ -1,6 +1,7 @@
 # Public repo — do not publish customer / ops material
 
-# Local client / MIF Cognos podman deployment (env files, passwords, cogstartup, ctl)
+# Local client Cognos podman ops — private clone: ~/projects/mif-podman
+# (git.amvara.de client group). Do not publish here.
 podmanctl/
 
 # macOS
