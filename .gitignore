@@ -1,2 +1,53 @@
-# Private / local ops tooling — do not publish
+# Public repo — do not publish customer / ops material
+
+# Local MBAG / MIF Cognos podman deployment (env files, passwords, cogstartup, ctl)
 podmanctl/
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Env / secrets / credentials
+.env
+.env.*
+*.env
+env-*
+*-env/
+*password*
+*passwd*
+*credential*
+*secret*
+*.pem
+*.key
+*.p12
+*.jks
+id_rsa*
+*.crt
+
+# Cognos config with customer hosts / encrypted passwords
+*cogstartup*
+!silent-install-response-properties/*.example
+response.properties
+response-*.properties
+!response.properties.example
+!response-linux.properties.example
+cmplst.txt
+
+# Customer / MBAG ops scripts (do not re-add)
+cognosAuditDbMaintenance
+cleanUpCognosInstallation_unix
+
+# CoCoMa / customer XML if copied here
+COCOMA_CONFIG*.xml
+**/COCOMA_CONFIG*.xml
+
+# Build / runtime junk
+*.class
+*.jar
+!**/drivers/README.md
+*.log
+*.tgz
+*.tar.gz
+amvara-*.md
+*-review.md
+*-investigation.md
