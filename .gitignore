@@ -1,6 +1,6 @@
 # Public repo — do not publish customer / ops material
 
-# Local MBAG / MIF Cognos podman deployment (env files, passwords, cogstartup, ctl)
+# Local client / MIF Cognos podman deployment (env files, passwords, cogstartup, ctl)
 podmanctl/
 
 # macOS
@@ -33,7 +33,7 @@ response-*.properties
 !response-linux.properties.example
 cmplst.txt
 
-# Customer / MBAG ops scripts (do not re-add)
+# Client ops scripts (do not re-add)
 cognosAuditDbMaintenance
 cleanUpCognosInstallation_unix
 
