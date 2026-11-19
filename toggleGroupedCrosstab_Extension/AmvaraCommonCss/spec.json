@@ -1,0 +1,38 @@
+{
+	"name":"AmvaraCommonCss",
+	"schemaVersion": "1.0",
+	"extensions": [
+	{
+		"perspective": "common",
+		"comment": "There is a special meta perspective called COMMON. Adding contributions to this perspective will cause the extension to be applied to All perspectives.",
+		"features": [{
+			"id": "amvara.common.menu.AmvaraCommonCss",
+			"cssStyles": [
+				"v1/ext/AmvaraCommonCss/css/AmvaraCommonCss.css"
+			], 
+			"toolItems": [
+			{
+				"comment": "This code adds a button to easily access an important folder.",
+				"id": "sample.folder.opener",
+				"containerId": "com.ibm.bi.glass.navbarLeadingGroup",
+				"label": "Amvara",
+				"type": "Button",
+				"icon": "ba_content_nav-folder_24",
+				"weight": 700,
+				"comment": "The higher the weight, the earlier it appears in the container.",
+				"push": "true",
+				"actionController": "bi/glass/api/FolderOpener",
+				"options": {"path": ".public_folders/Amvara"}
+			},
+			{
+				"comment": "Common JS - This JS file may be used to include JS to be used in HTML items system wide.",
+				"id": "amvara.home.AmvaraCommonCss",
+				"containerId": "com.ibm.bi.glass.common.personalMenu",
+				"label": "-",
+				"type": "MenuItem",
+				"weight": 0,
+				"actionController": "v1/ext/AmvaraCommonCss/js/AmvaraCommonJs"
+			}
+			]
+		}]
+	}]}

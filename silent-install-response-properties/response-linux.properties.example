@@ -1,0 +1,26 @@
+# Replay / response file for IBM Cognos Analytics silent install (Linux)
+# Template only — copy, rename to response.properties, and edit.
+# Do not commit files that contain encrypted passwords.
+#
+# Example generate:
+#   ./ca_instl_linuxx86_*.bin -DREPO=ca_srv_linuxi38664_*.zip -r /tmp/response.properties
+# Example silent run:
+#   ./ca_instl_linuxx86_*.bin -DREPO=ca_srv_linuxi38664_*.zip -f /tmp/response.properties -i silent
+
+INSTALLER_UI=silent
+LICENSE_ACCEPTED=true
+
+BISRVR_CA_INSTALL=1
+BISRVR_CA_TOOLS_INSTALL=0
+USER_INSTALL_DIR=/opt/ibm/cognos/analytics
+BISRVR_SHORTCUT=IBM Cognos Analytics
+BISRVR_ALLUSERS=1
+BISRVR_INSTALLTYPE_CUSTOM=1
+BISRVR_CUSTOM_FIRST=1
+BISRVR_CUSTOM_EXPAND=0
+
+# Features: 1 = install, 0 = skip
+BISRVR_FEATURE_DATATIER=1
+BISRVR_FEATURE_APPTIER=1
+BISRVR_FEATURE_GATEWAY=1
+BISRVR_FEATURE_SAMPLES=0

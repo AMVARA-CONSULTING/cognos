@@ -1,0 +1,54 @@
+# Public repo — do not publish customer / ops material
+
+# Local client Cognos podman ops — private clone: ~/projects/mif-podman
+# (git.amvara.de client group). Do not publish here.
+podmanctl/
+
+# macOS
+.DS_Store
+**/.DS_Store
+
+# Env / secrets / credentials
+.env
+.env.*
+*.env
+env-*
+*-env/
+*password*
+*passwd*
+*credential*
+*secret*
+*.pem
+*.key
+*.p12
+*.jks
+id_rsa*
+*.crt
+
+# Cognos config with customer hosts / encrypted passwords
+*cogstartup*
+!silent-install-response-properties/*.example
+response.properties
+response-*.properties
+!response.properties.example
+!response-linux.properties.example
+cmplst.txt
+
+# Client ops scripts (do not re-add)
+cognosAuditDbMaintenance
+cleanUpCognosInstallation_unix
+
+# CoCoMa / customer XML if copied here
+COCOMA_CONFIG*.xml
+**/COCOMA_CONFIG*.xml
+
+# Build / runtime junk
+*.class
+*.jar
+!**/drivers/README.md
+*.log
+*.tgz
+*.tar.gz
+amvara-*.md
+*-review.md
+*-investigation.md
